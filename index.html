@@ -22,12 +22,13 @@
     .controls label {
       margin-right: 10px;
       display: inline-block;
-      min-width: 250px;
+      min-width: 180px;
     }
     .line {
       display: flex;
       flex-wrap: nowrap;
       margin-bottom: var(--line-spacing, 10px);
+      min-height: var(--line-min-height, 100px);
     }
     .glyph {
       width: 100px;
@@ -56,12 +57,14 @@
     <label>Spacing: <input type="range" id="spacingSlider" min="-80" max="50" value="-10" oninput="updateSpacing(this.value)"> <span id="spacingValue">-10</span> px</label>
     <label>Stroke Weight: <input type="range" id="strokeSlider" min="0.1" max="10" step="0.1" value="2" oninput="updateStrokeWeight(this.value)"> <span id="strokeValue">2</span></label>
     <label>Line Spacing: <input type="range" id="leadingSlider" min="-100" max="100" value="10" oninput="updateLineSpacing(this.value)"> <span id="leadingValue">10</span> px</label>
+    <label>Scale: <input type="range" id="scaleSlider" min="50" max="300" value="100" oninput="updateScale(this.value)"> <span id="scaleValue">100</span>%</label>
     <button onclick="exportToCleanSVG()">Export SVG</button>
   </div>
 
   <div id="glyphOutput" style="--stroke-weight: 2; --line-spacing: 10px;"></div>
 
   <script>
+    // EXAMPLE GLYPHS — replace with your real SVGs!
     const displayGlyphs = {
       "w": `<?xml version="1.0" encoding="UTF-8"?>
 <svg id="Layer_1" data-name="Layer 1" xmlns="http://www.w3.org/2000/svg" width="1.39in" height="1.39in" viewBox="0 0 100 100">
@@ -937,6 +940,8 @@
 `
     };
 
+    let currentScale = 100;
+
     function renderGlyphs() {
       const input = document.getElementById("textInput").value.toLowerCase().split("\n");
       const output = document.getElementById("glyphOutput");
@@ -945,13 +950,24 @@
       for (let lineText of input) {
         const line = document.createElement("div");
         line.className = "line";
+        const size = 100 * currentScale / 100;
+        line.style.setProperty('--line-min-height', `${size}px`);
         line.style.marginBottom = getComputedStyle(document.getElementById("glyphOutput")).getPropertyValue('--line-spacing');
         for (let char of lineText) {
-          const key = char === " " ? "-" : char;
+          let key;
+          if (char === " ") key = "-";
+          else if (char === ".") key = "period";
+          else if (char === ";") key = ";";
+          else if (char === ",") key = ",";
+          else key = char;
           if (displayGlyphs[key]) {
             const wrapper = document.createElement("div");
             wrapper.className = "glyph";
-            wrapper.innerHTML = displayGlyphs[key];
+            wrapper.style.width = `${size}px`;
+            wrapper.style.height = `${size}px`;
+            wrapper.innerHTML = displayGlyphs[key]
+              .replace('width="100"', `width="${size}"`)
+              .replace('height="100"', `height="${size}"`);
             line.appendChild(wrapper);
           }
         }
@@ -978,31 +994,45 @@
       renderGlyphs();
     }
 
+    function updateScale(val) {
+      currentScale = parseInt(val);
+      document.getElementById("scaleValue").innerText = val;
+      renderGlyphs();
+    }
+
     function exportToCleanSVG() {
       const text = document.getElementById("textInput").value.toLowerCase();
       const spacing = parseInt(document.getElementById("spacingSlider").value);
       const leading = parseInt(document.getElementById("leadingSlider").value);
       const stroke = document.getElementById("strokeSlider").value;
+      const scale = currentScale / 100;
 
       const lines = text.split("\n");
       let svgContent = '';
       let y = 0;
-      const glyphWidth = 100;
-      const glyphHeight = 100;
+      const glyphWidth = 100 * scale;
+      const glyphHeight = 100 * scale;
 
       for (let line of lines) {
         let x = 0;
         for (let char of line) {
-          const key = char === " " ? "-" : char;
+          let key;
+          if (char === " ") key = "-";
+          else if (char === ".") key = "period";
+          else if (char === ";") key = ";";
+          else if (char === ",") key = ",";
+          else key = char;
           if (exportGlyphs[key]) {
-            svgContent += `<g transform="translate(${x},${y})">` + exportGlyphs[key].replaceAll("STROKE", stroke) + `</g>`;
+            svgContent += `<g transform="translate(${x},${y}) scale(${scale})">` + exportGlyphs[key].replaceAll("STROKE", stroke) + `</g>`;
             x += glyphWidth + spacing;
           }
         }
         y += glyphHeight + leading;
       }
 
-      const fullSVG = `<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="1000" viewBox="0 0 1000 1000">${svgContent}</svg>`;
+      const width = Math.max(1000 * scale, 1000);
+      const height = Math.max(y, 1000 * scale);
+      const fullSVG = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">${svgContent}</svg>`;
       const blob = new Blob([fullSVG], {type: "image/svg+xml;charset=utf-8"});
       const link = document.createElement("a");
       link.href = URL.createObjectURL(blob);
@@ -1011,6 +1041,13 @@
       link.click();
       document.body.removeChild(link);
     }
+
+    // Initialize controls and render once on page load
+    document.getElementById("scaleSlider").addEventListener("input", function() {
+      updateScale(this.value);
+    });
+    renderGlyphs();
+
   </script>
 </body>
 </html>
